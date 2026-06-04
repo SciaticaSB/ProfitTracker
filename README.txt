@@ -1,4 +1,4 @@
-Hey Im sciatica, i "made" the profit tracker (i mostly used ai for it; i only did slight color changes and text rewrites)
+Hey Im sciatica, i made the profit tracker 
 I hope it works and leave comments on the GitHub page if u have suggestions
 If you leave the session name blank it will automatically name it session one, session two, etc.
 You can export and import reports with the buttons above ur session logs.
