@@ -108,9 +108,9 @@
 
 <div class="action-row">
   <input type="file" id="import-file" accept=".txt" style="display:none" onchange="importReport(event)" />
-  <button onclick="document.getElementById('import-file').click()" style="background:transparent;border:1px solid var(--border);color:var(--text2);letter-spacing:.08em">&#8679; Import Report</button>
-  <button onclick="downloadReport()" style="background:transparent;border:1px solid var(--border);color:var(--text2);letter-spacing:.08em">&#8681; Download Report</button>
-  <button onclick="resetTracker()" style="background:transparent;border:1px solid var(--red);color:var(--red);letter-spacing:.08em">&#10005; Reset Tracker</button>
+  <button onclick="document.getElementById('import-file').click()" style="background:transparent;border:1px solid var(--border);color:var(--text2);letter-spacing:.08em">&#8679; Import </button>
+  <button onclick="downloadReport()" style="background:transparent;border:1px solid var(--border);color:var(--text2);letter-spacing:.08em">&#8681; Export </button>
+  <button onclick="resetTracker()" style="background:transparent;border:1px solid var(--red);color:var(--red);letter-spacing:.08em">&#10005; Reset </button>
 </div>
 
 <div class="card">
@@ -159,7 +159,19 @@ function save() {
   try { localStorage.setItem('gpt_sessions', JSON.stringify(sessions)); } catch(e) {}
 }
 
-function fmt(n) { return (n < 0 ? '-' : '') + '$' + Math.floor(Math.abs(n)); }
+function fmt(n) {
+  var sign = n < 0 ? '-' : '';
+  var abs = Math.floor(Math.abs(n));
+  var str;
+  if (abs >= 1000000) {
+    str = Math.floor(abs / 100000) / 10 + 'm';
+  } else if (abs >= 100000) {
+    str = Math.floor(abs / 1000) + 'k';
+  } else {
+    str = String(abs);
+  }
+  return sign + '$' + str;
+}
 
 function fmtDuration(secs) {
   var h = Math.floor(secs / 3600);
