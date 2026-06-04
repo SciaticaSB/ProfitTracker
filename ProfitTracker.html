@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Profit Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #000; --bg2: #0d0d0d; --bg3: #161616;
+    --border: #2a2a2a; --text: #f0f0f0; --text2: #888;
+    --green: #1aba7a; --red: #e05540; --gold: #d4a843;
+    --radius: 10px; --font: 'Consolas', 'Courier New', monospace;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; padding: 2rem 1rem; }
+  h1 { font-size: 1.1rem; letter-spacing: .25em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.75rem; border-bottom: 1px solid var(--border); padding-bottom: .75rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: .875rem 1rem; }
+  .metric-label { font-size: 11px; color: var(--text2); margin-bottom: 5px; letter-spacing: .1em; text-transform: uppercase; }
+  .metric-value { font-size: 20px; font-weight: 700; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .card-header { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: var(--text2); margin-bottom: 12px; }
+  .form-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  input, select, button { font-family: var(--font); font-size: 13px; border-radius: 6px; outline: none; }
+  input, select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; height: 36px; width: 100%; transition: border-color .2s; }
+  input:focus, select:focus { border-color: var(--gold); }
+  input::placeholder { color: #444; }
+  button { background: var(--gold); color: #000; border: none; height: 36px; padding: 0 16px; cursor: pointer; font-weight: 700; letter-spacing: .05em; transition: opacity .15s; white-space: nowrap; }
+  button:hover:not(:disabled) { opacity: .85; }
+  button:disabled { background: #333; color: #666; cursor: not-allowed; opacity: 1; }
+  .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+  .btn-secondary:hover { border-color: var(--text2); color: var(--text); opacity: 1; }
+  .hint { font-size: 11px; color: var(--text2); letter-spacing: .05em; }
+  .timer-display { font-size: 36px; font-weight: 700; letter-spacing: .08em; color: var(--text); margin: 6px 0 4px; }
+  .timer-sub { font-size: 12px; color: var(--text2); }
+  .timer-row { display: flex; gap: 8px; margin-top: 12px; }
+  .timer-row input { flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot-inactive { background: var(--border); }
+  .status-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .status-text { font-size: 12px; color: var(--text2); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  th { text-align: left; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); padding: 0 8px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px; border-bottom: 1px solid var(--border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .profit { color: var(--green); font-weight: 700; }
+  .loss { color: var(--red); font-weight: 700; }
+  .gold { color: var(--gold); font-weight: 700; }
+  .empty { text-align: center; color: var(--text2); padding: 2rem 0; font-size: 13px; }
+  .chart-wrap { position: relative; width: 100%; height: 200px; margin-top: 8px; }
+  .period-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #444; font-size: 15px; padding: 2px 5px; border-radius: 4px; font-family: var(--font); transition: color .15s; height: auto; }
+  .del-btn:hover { color: var(--red); }
+  .action-row { margin-bottom: 1rem; display: flex; justify-content: flex-end; gap: 8px; }
+</style>
+</head>
+<body>
+
+<h1>⚔ Profit Tracker</h1>
+
+<div class="summary-grid">
+  <div class="metric"><div class="metric-label">Total profit</div><div class="metric-value" id="total-profit" style="color:var(--green)">$0</div></div>
+  <div class="metric"><div class="metric-label">Total sales</div><div class="metric-value" id="total-sales">0</div></div>
+  <div class="metric"><div class="metric-label">Avg / item</div><div class="metric-value" id="avg-profit">$0</div></div>
+  <div class="metric"><div class="metric-label">Coins / hr</div><div class="metric-value" id="coins-hr" style="color:var(--gold)">—</div></div>
+</div>
+
+<div class="card">
+  <div class="status-row">
+    <span class="dot dot-inactive" id="timer-dot"></span>
+    <span class="card-header" style="margin:0">Session Timer</span>
+    <span class="status-text" id="session-status">No active session</span>
+  </div>
+  <div class="timer-display" id="timer-display">00:00:00</div>
+  <div class="timer-sub" id="session-cph-line">Start a session to track coins per hour</div>
+  <div class="timer-row">
+    <input type="text" id="session-label" placeholder="Session name (e.g. Farming run)" />
+    <button id="timer-btn" onclick="toggleTimer()">&#9654; Start</button>
+    <button id="stop-btn" class="btn-secondary" onclick="stopTimer()" style="display:none">&#9632; End</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Add Transaction</div>
+  <div class="form-row">
+    <input type="text" id="item-name" placeholder="Item name" />
+    <input type="number" id="sell-price" placeholder="Sell price" min="0" step="0.01" />
+    <input type="number" id="qty" placeholder="Qty" min="1" value="1" />
+    <button id="add-btn" onclick="addEntry()" disabled>Add</button>
+  </div>
+  <div class="hint">Item name &middot; sell price &middot; quantity</div>
+</div>
+
+<div class="card">
+  <div class="period-row">
+    <div class="card-header" style="margin:0">Profit Over Time</div>
+    <select id="period-select" onchange="renderChart()" style="width:auto">
+      <option value="7">7 days</option>
+      <option value="30" selected>30 days</option>
+      <option value="90">90 days</option>
+      <option value="all">All time</option>
+    </select>
+  </div>
+  <div class="chart-wrap"><canvas id="profitChart"></canvas></div>
+</div>
+
+<div class="action-row">
+  <input type="file" id="import-file" accept=".txt" style="display:none" onchange="importReport(event)" />
+  <button onclick="document.getElementById('import-file').click()" style="background:transparent;border:1px solid var(--border);color:var(--text2);letter-spacing:.08em">&#8679; Import Report</button>
+  <button onclick="downloadReport()" style="background:transparent;border:1px solid var(--border);color:var(--text2);letter-spacing:.08em">&#8681; Download Report</button>
+  <button onclick="resetTracker()" style="background:transparent;border:1px solid var(--red);color:var(--red);letter-spacing:.08em">&#10005; Reset Tracker</button>
+</div>
+
+<div class="card">
+  <div class="card-header">Session Log</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30%">Session</th>
+        <th style="width:17%">Date</th>
+        <th style="width:17%">Duration</th>
+        <th style="width:15%">Profit</th>
+        <th style="width:15%">Coins/hr</th>
+        <th style="width:6%"></th>
+      </tr>
+    </thead>
+    <tbody id="session-log-body"><tr><td colspan="6" class="empty">No sessions recorded yet.</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Reset confirmation modal -->
+<div id="reset-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#0d0d0d;border:1px solid var(--red);border-radius:10px;padding:2rem;max-width:360px;width:90%;font-family:var(--font)">
+    <div style="font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--red);margin-bottom:.75rem">&#9888; Reset Tracker</div>
+    <p style="font-size:13px;color:#ccc;line-height:1.6;margin-bottom:1.5rem">This will permanently delete <strong style="color:#fff">all sessions, transactions, and data</strong>. This cannot be undone.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeReset()" style="background:transparent;border:1px solid var(--border);color:var(--text2)">Cancel</button>
+      <button onclick="confirmReset()" style="background:var(--red);color:#fff;letter-spacing:.05em">Delete Everything</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let entries = [];
+let sessions = [];
+let timerInterval = null;
+let sessionStart = null;
+let sessionElapsed = 0;
+let activeSessionId = null;
+let chartInstance = null;
+
+try { entries = JSON.parse(localStorage.getItem('gpt_entries2') || '[]'); } catch(e) {}
+try { sessions = JSON.parse(localStorage.getItem('gpt_sessions') || '[]'); } catch(e) {}
+
+function save() {
+  try { localStorage.setItem('gpt_entries2', JSON.stringify(entries)); } catch(e) {}
+  try { localStorage.setItem('gpt_sessions', JSON.stringify(sessions)); } catch(e) {}
+}
+
+function fmt(n) { return (n < 0 ? '-' : '') + '$' + Math.floor(Math.abs(n)); }
+
+function fmtDuration(secs) {
+  var h = Math.floor(secs / 3600);
+  var m = Math.floor((secs % 3600) / 60);
+  var s = secs % 60;
+  return [h, m, s].map(function(v) { return String(v).padStart(2, '0'); }).join(':');
+}
+
+function toggleTimer() {
+  if (!timerInterval) {
+    sessionStart = Date.now() - sessionElapsed * 1000;
+    activeSessionId = activeSessionId || ('s' + Date.now());
+    timerInterval = setInterval(tickTimer, 1000);
+    document.getElementById('timer-btn').textContent = '\u23F8 Pause';
+    document.getElementById('stop-btn').style.display = '';
+    document.getElementById('timer-dot').className = 'dot dot-active';
+    document.getElementById('session-status').textContent = 'Session running';
+    document.getElementById('add-btn').disabled = false;
+  } else {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    sessionElapsed = Math.floor((Date.now() - sessionStart) / 1000);
+    document.getElementById('timer-btn').textContent = '\u25B6 Resume';
+    document.getElementById('timer-dot').className = 'dot dot-inactive';
+    document.getElementById('session-status').textContent = 'Paused';
+  }
+}
+
+function tickTimer() {
+  sessionElapsed = Math.floor((Date.now() - sessionStart) / 1000);
+  document.getElementById('timer-display').textContent = fmtDuration(sessionElapsed);
+  updateLiveCPH();
+}
+
+function updateLiveCPH() {
+  if (!activeSessionId || sessionElapsed < 1) return;
+  var sp = entries.filter(function(e) { return e.sessionId === activeSessionId; }).reduce(function(s, e) { return s + e.sell * e.qty; }, 0);
+  var hrs = sessionElapsed / 3600;
+  document.getElementById('session-cph-line').textContent = 'Session profit: ' + fmt(sp) + ' \u00B7 ' + fmt(sp / hrs) + '/hr';
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  var label = document.getElementById('session-label').value.trim() || ('Session ' + (sessions.length + 1));
+  var sp = entries.filter(function(e) { return e.sessionId === activeSessionId; }).reduce(function(s, e) { return s + e.sell * e.qty; }, 0);
+  var hrs = sessionElapsed / 3600;
+  var cph = hrs > 0 ? sp / hrs : 0;
+  sessions.push({ id: activeSessionId, label: label, date: new Date().toISOString().split('T')[0], duration: sessionElapsed, profit: sp, cph: cph });
+  save();
+  sessionElapsed = 0; sessionStart = null; activeSessionId = null;
+  document.getElementById('timer-display').textContent = '00:00:00';
+  document.getElementById('session-label').value = '';
+  document.getElementById('timer-btn').textContent = '\u25B6 Start';
+  document.getElementById('stop-btn').style.display = 'none';
+  document.getElementById('timer-dot').className = 'dot dot-inactive';
+  document.getElementById('session-status').textContent = 'No active session';
+  document.getElementById('session-cph-line').textContent = 'Start a session to track coins per hour';
+  document.getElementById('add-btn').disabled = true;
+  render();
+}
+
+function addEntry() {
+  var name = document.getElementById('item-name').value.trim();
+  var sell = parseFloat(document.getElementById('sell-price').value);
+  var qty = parseInt(document.getElementById('qty').value) || 1;
+  if (!name || isNaN(sell)) return;
+  entries.push({ id: Date.now(), name: name, sell: sell, qty: qty, date: new Date().toISOString().split('T')[0], sessionId: activeSessionId || null });
+  save();
+  document.getElementById('item-name').value = '';
+  document.getElementById('sell-price').value = '';
+  document.getElementById('qty').value = '1';
+  if (activeSessionId) updateLiveCPH();
+  render();
+}
+
+function deleteSession(id) {
+  sessions = sessions.filter(function(s) { return s.id !== id; });
+  entries = entries.filter(function(e) { return e.sessionId !== id; });
+  save();
+  render();
+}
+
+function downloadReport() {
+  var totalProfit = entries.reduce(function(s, e) { return s + e.sell * e.qty; }, 0);
+  var totalSales = entries.reduce(function(s, e) { return s + e.qty; }, 0);
+  var totalSecs = sessions.reduce(function(s, s2) { return s + s2.duration; }, 0);
+  var cphs = sessions.map(function(s) { return s.cph; });
+  var avgCph = cphs.length ? cphs.reduce(function(a, b) { return a + b; }, 0) / cphs.length : 0;
+  var lines = [
+    '========================================',
+    '           PROFIT TRACKER REPORT        ',
+    '========================================',
+    'Generated: ' + new Date().toLocaleString(),
+    '',
+    '----------------------------------------',
+    '  Total Session Time : ' + fmtDuration(totalSecs),
+    '  Total Profit       : ' + fmt(totalProfit),
+    '  Total Sales        : ' + totalSales,
+    '  Avg Coins / Hour   : ' + fmt(avgCph),
+    '----------------------------------------',
+    '',
+    'SESSION BREAKDOWN',
+    '----------------------------------------'
+  ];
+  if (sessions.length) {
+    var sorted = sessions.slice().sort(function(a, b) { return b.id > a.id ? 1 : -1; });
+    sorted.forEach(function(s) {
+      lines.push('  ' + s.label.padEnd(20) + '  ' + s.date + '  ' + fmtDuration(s.duration) + '  ' + fmt(s.profit) + '  ' + fmt(s.cph) + '/hr');
+    });
+  } else {
+    lines.push('  No sessions recorded.');
+  }
+  lines.push('========================================');
+  var blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  var now = new Date();
+  var stamp = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + '-' + String(now.getMinutes()).padStart(2,'0');
+  a.download = 'profit_report_' + stamp + '.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importReport(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = e.target.result;
+    var lines = text.split('\n');
+    var inBreakdown = false;
+    var imported = 0;
+    lines.forEach(function(line) {
+      if (line.trim() === 'SESSION BREAKDOWN') { inBreakdown = true; return; }
+      if (!inBreakdown) return;
+      if (/^[=\-]/.test(line.trim()) || !line.trim() || line.trim() === 'No sessions recorded.') return;
+      // Format: "  LABEL  YYYY-MM-DD  HH:MM:SS  $PROFIT  $CPH/hr"
+      // Split on 2+ spaces to handle variable label length
+      var parts = line.trim().split(/\s{2,}/);
+      if (parts.length < 5) return;
+      var label = parts[0];
+      var date = parts[1];
+      var durStr = parts[2];
+      var profitStr = parts[3];
+      var cphStr = parts[4];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      if (!/^\d{2}:\d{2}:\d{2}$/.test(durStr)) return;
+      var durParts = durStr.split(':').map(Number);
+      var duration = durParts[0]*3600 + durParts[1]*60 + durParts[2];
+      var profit = parseInt(profitStr.replace('$','').replace('-','')) * (profitStr.startsWith('-') ? -1 : 1);
+      var cph = parseInt(cphStr.replace('$','').replace('/hr','').replace('-','')) * (cphStr.startsWith('-') ? -1 : 1);
+      if (isNaN(profit) || isNaN(cph)) return;
+      if (sessions.find(function(s) { return s.label.trim() === label.trim() && s.date === date; })) return;
+      var sid = 'imp_' + Date.now() + '_' + imported;
+      sessions.push({ id: sid, label: label.trim(), date: date, duration: duration, profit: profit, cph: cph });
+      entries.push({ id: Date.now() + imported, name: '[imported]', sell: profit, qty: 1, date: date, sessionId: sid });
+      imported++;
+    });
+    if (imported === 0) {
+      alert('No new sessions found. Sessions already in your tracker are skipped.');
+    } else {
+      save();
+      render();
+      alert('Imported ' + imported + ' session' + (imported > 1 ? 's' : '') + ' successfully.');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function resetTracker() {
+  document.getElementById('reset-modal').style.display = 'flex';
+}
+
+function closeReset() {
+  document.getElementById('reset-modal').style.display = 'none';
+}
+
+function confirmReset() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  entries = []; sessions = [];
+  sessionElapsed = 0; sessionStart = null; activeSessionId = null;
+  try { localStorage.removeItem('gpt_entries2'); localStorage.removeItem('gpt_sessions'); } catch(e) {}
+  document.getElementById('timer-display').textContent = '00:00:00';
+  document.getElementById('session-label').value = '';
+  document.getElementById('timer-btn').textContent = '\u25B6 Start';
+  document.getElementById('stop-btn').style.display = 'none';
+  document.getElementById('timer-dot').className = 'dot dot-inactive';
+  document.getElementById('session-status').textContent = 'No active session';
+  document.getElementById('session-cph-line').textContent = 'Start a session to track coins per hour';
+  document.getElementById('add-btn').disabled = true;
+  closeReset();
+  render();
+}
+
+function render() { renderSummary(); renderSessionLog(); renderChart(); }
+
+function renderSummary() {
+  var tp = entries.reduce(function(s, e) { return s + e.sell * e.qty; }, 0);
+  var ts = entries.reduce(function(s, e) { return s + e.qty; }, 0);
+  var avg = ts ? tp / ts : 0;
+  var cphs = sessions.map(function(s) { return s.cph; });
+  var avgCph = cphs.length ? cphs.reduce(function(a, b) { return a + b; }, 0) / cphs.length : null;
+  var el = document.getElementById('total-profit');
+  el.textContent = fmt(tp);
+  el.style.color = tp >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('total-sales').textContent = ts;
+  var ap = document.getElementById('avg-profit');
+  ap.textContent = fmt(avg);
+  ap.style.color = avg >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('coins-hr').textContent = avgCph !== null ? fmt(avgCph) : '\u2014';
+}
+
+function renderSessionLog() {
+  var body = document.getElementById('session-log-body');
+  if (!sessions.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No sessions recorded yet.</td></tr>'; return; }
+  var sorted = sessions.slice().sort(function(a, b) { return a.id < b.id ? 1 : -1; });
+  body.innerHTML = sorted.map(function(s) {
+    return '<tr>' +
+      '<td title="' + s.label + '">' + s.label + '</td>' +
+      '<td>' + s.date + '</td>' +
+      '<td>' + fmtDuration(s.duration) + '</td>' +
+      '<td class="' + (s.profit >= 0 ? 'profit' : 'loss') + '">' + fmt(s.profit) + '</td>' +
+      '<td class="gold">' + fmt(s.cph) + '/hr</td>' +
+      '<td><button class="del-btn" onclick="deleteSession(\'' + s.id + '\')" title="Delete session">\u2715</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderChart() {
+  var period = document.getElementById('period-select').value;
+  var cutoff = period !== 'all' ? new Date(Date.now() - parseInt(period) * 86400000) : null;
+  var filtered = cutoff ? entries.filter(function(e) { return new Date(e.date) >= cutoff; }) : entries;
+  var byDay = {};
+  filtered.forEach(function(e) { byDay[e.date] = (byDay[e.date] || 0) + e.sell * e.qty; });
+  var labels = Object.keys(byDay).sort();
+  var data = labels.map(function(d) { return parseFloat(byDay[d].toFixed(2)); });
+  var ctx = document.getElementById('profitChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+  if (!labels.length) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#555'; ctx.font = '13px Consolas, monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No data for this period', ctx.canvas.offsetWidth / 2, 100);
+    return;
+  }
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{ label: 'Daily profit', data: data,
+        backgroundColor: data.map(function(v) { return v >= 0 ? 'rgba(26,186,122,0.6)' : 'rgba(224,85,64,0.6)'; }),
+        borderColor: data.map(function(v) { return v >= 0 ? '#1aba7a' : '#e05540'; }),
+        borderWidth: 1, borderRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return fmt(c.parsed.y); } } } },
+      scales: {
+        x: { ticks: { autoSkip: true, maxTicksLimit: 10, color: '#666', font: { size: 11, family: 'Consolas, monospace' } }, grid: { display: false }, border: { color: '#2a2a2a' } },
+        y: { ticks: { callback: function(v) { return fmt(v); }, color: '#666', font: { size: 11, family: 'Consolas, monospace' } }, grid: { color: 'rgba(255,255,255,0.05)' }, border: { color: '#2a2a2a' } }
+      }
+    }
+  });
+}
+
+render();
+</script>
+</body>
+</html>
